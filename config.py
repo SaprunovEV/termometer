@@ -5,7 +5,7 @@ PORT = 'COM3'
 BAUD_RATE = 9600
 
 # Настройки файлов
-CSV_FILE = 'temperature_data.csv'
+CSV_FILE = 'temperature_data_new.csv'
 
 # Настройки графиков
 PLOT_WINDOW = 120  # Количество точек на графике
