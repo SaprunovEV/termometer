@@ -87,7 +87,7 @@ class TemperatureSensor:
                     # Событие сырых данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_RAW,
-                        {"value": raw_temp}
+                        {"value": raw_temp, "id": 1}
                     ))
 
                     # Фильтрация
