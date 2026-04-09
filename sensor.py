@@ -4,7 +4,7 @@ import asyncio
 import serial
 import time
 import json
-from typing import Optional
+from typing import Optional, Any
 
 from event_bus import EventBus
 from events import EventType, TemperatureEvent
@@ -19,8 +19,6 @@ class TemperatureSensor:
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
         self.filters = {}
-        # self.filters.append(TemperatureFilter())
-        # self.filters.append(TemperatureFilter())
         self.serial: Optional[serial.Serial] = None
         self.running = False
 
@@ -90,36 +88,7 @@ class TemperatureSensor:
 
                 if raw_line is not None:
 
-                    data = json.loads(raw_line)
-                    measurements = []
-
-                    for (item) in data.get('data', []):
-                        try:
-                            sensor_id = item['id']
-
-                            if sensor_id in self.filters:
-                                # Существует
-                                measurement = Measurement(
-                                    item['id'],
-                                    item['temp'],
-                                    _filter=self.filters[sensor_id]
-                                )
-                            else:
-                                # Не существует - создаём
-                                new_filter = TemperatureFilter()
-                                self.filters[sensor_id] = new_filter
-                                measurement = Measurement(
-                                    item['id'],
-                                    item['temp'],
-                                    _filter=new_filter
-                                )
-
-                            measurements.append(measurement)
-                        except (KeyError, TypeError) as e:
-                            await self.event_bus.emit(TemperatureEvent(
-                                EventType.SENSOR_ERROR,
-                                str(e)
-                            ))
+                    measurements = await self.create_measurement(raw_line)
 
                     # Событие сырых данных
                     await self.event_bus.emit(TemperatureEvent(
@@ -146,6 +115,45 @@ class TemperatureSensor:
                     str(e)
                 ))
                 await asyncio.sleep(1)
+
+    async def create_measurement(self, raw_line: str) -> list[Any]:
+        data = json.loads(raw_line)
+        measurements = []
+
+        for (item) in data.get('data', []):
+            try:
+
+                measurement = await self.append_filter(item)
+
+                measurements.append(measurement)
+
+            except (KeyError, TypeError) as e:
+                await self.event_bus.emit(TemperatureEvent(
+                    EventType.SENSOR_ERROR,
+                    str(e)
+                ))
+        return measurements
+
+    async def append_filter(self, item) -> Measurement:
+        sensor_id = item['id']
+
+        if sensor_id in self.filters:
+            # Существует
+            measurement = Measurement(
+                item['id'],
+                item['temp'],
+                _filter=self.filters[sensor_id]
+            )
+        else:
+            # Не существует - создаём
+            new_filter = TemperatureFilter()
+            self.filters[sensor_id] = new_filter
+            measurement = Measurement(
+                item['id'],
+                item['temp'],
+                _filter=new_filter
+            )
+        return measurement
 
     def stop(self):
         """Остановка сбора данных"""
