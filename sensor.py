@@ -93,7 +93,6 @@ class TemperatureSensor:
                     data = json.loads(raw_line)
                     measurements = []
 
-                    ind = 0
                     for (item) in data.get('data', []):
                         try:
                             sensor_id = item['id']
@@ -116,7 +115,6 @@ class TemperatureSensor:
                                 )
 
                             measurements.append(measurement)
-                            ind += 1
                         except (KeyError, TypeError) as e:
                             await self.event_bus.emit(TemperatureEvent(
                                 EventType.SENSOR_ERROR,
