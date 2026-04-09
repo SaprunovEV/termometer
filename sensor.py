@@ -8,9 +8,7 @@ from typing import Optional, Any
 
 from event_bus import EventBus
 from events import EventType, TemperatureEvent
-from handlers.domain.Messurement import Measurement
-from handlers.interface._MeasurementFactory import MeasurementFactory
-from temperature_filter import TemperatureFilter
+from handlers.domain._MeasurementFactory import MeasurementFactory
 import config
 
 
