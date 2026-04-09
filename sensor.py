@@ -9,6 +9,7 @@ from typing import Optional, Any
 from event_bus import EventBus
 from events import EventType, TemperatureEvent
 from handlers.domain.Messurement import Measurement
+from handlers.interface._MeasurementFactory import MeasurementFactory
 from temperature_filter import TemperatureFilter
 import config
 
@@ -18,7 +19,7 @@ class TemperatureSensor:
 
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
-        self.filters = {}
+        self.measurement_factory = MeasurementFactory()
         self.serial: Optional[serial.Serial] = None
         self.running = False
 
@@ -123,7 +124,7 @@ class TemperatureSensor:
         for (item) in data.get('data', []):
             try:
 
-                measurement = await self.append_filter(item)
+                measurement = self.measurement_factory.create_measurement(item)
 
                 measurements.append(measurement)
 
@@ -133,27 +134,6 @@ class TemperatureSensor:
                     str(e)
                 ))
         return measurements
-
-    async def append_filter(self, item) -> Measurement:
-        sensor_id = item['id']
-
-        if sensor_id in self.filters:
-            # Существует
-            measurement = Measurement(
-                item['id'],
-                item['temp'],
-                _filter=self.filters[sensor_id]
-            )
-        else:
-            # Не существует - создаём
-            new_filter = TemperatureFilter()
-            self.filters[sensor_id] = new_filter
-            measurement = Measurement(
-                item['id'],
-                item['temp'],
-                _filter=new_filter
-            )
-        return measurement
 
     def stop(self):
         """Остановка сбора данных"""
