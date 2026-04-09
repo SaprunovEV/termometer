@@ -26,11 +26,11 @@ class CSVWriter:
         if event.type == EventType.TEMPERATURE_FILTERED:
             data = event.data
             self.writer.writerow([
-                f"{data['id']}",
+                f"{data.ter_id}",
                 event.timestamp.isoformat(),
-                f"{data['raw']:.3f}",
-                f"{data['filtered']:.3f}",
-                f"{data['noise']:.3f}"
+                f"{data.value:.3f}",
+                f"{data.filtered:.3f}",
+                f"{data.noise():.3f}"
             ])
             self.file.flush()
             self.measurement_count += 1

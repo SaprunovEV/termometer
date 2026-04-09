@@ -8,6 +8,7 @@ from typing import Optional
 
 from event_bus import EventBus
 from events import EventType, TemperatureEvent
+from handlers.domain.Messurement import Measurement
 from temperature_filter import TemperatureFilter
 import config
 
@@ -87,25 +88,18 @@ class TemperatureSensor:
 
                 if raw_line is not None:
                     data = json.loads(raw_line)
+                    measurement = Measurement(data['data'][0]['id'], data['data'][0]['temp'], _filter=self.filter)
+
                     # Событие сырых данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_RAW,
-                        {"value": data['data'][0]['temp'], "id": data['data'][0]['id']}
+                        {"value": measurement.value, "id": measurement.ter_id}
                     ))
-
-                    # Фильтрация
-                    filtered_temp = self.filter.filter(data['data'][0]['temp'])
-                    noise = data['data'][0]['temp'] - filtered_temp
 
                     # Событие отфильтрованных данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_FILTERED,
-                        {
-                            "raw": data['data'][0]['temp'],
-                            "filtered": filtered_temp,
-                            "noise": noise,
-                            "id": data['data'][0]['id']
-                        }
+                        measurement
                     ))
                 else:
                     await self.event_bus.emit(TemperatureEvent(
