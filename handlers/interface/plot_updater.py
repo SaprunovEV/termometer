@@ -1,25 +1,25 @@
 """Обработчик: обновление графиков с кнопкой выхода и обработкой закрытия окна"""
 
-import time
-import asyncio
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button
 
 from events import EventType, TemperatureEvent
-import config
+from . import plot_config as config
+from ._time_formatter import _apply_time_formatter
+from ._plot_widgets import _PlotWidgets
+from ._data_plots import _DataPlots
+import config as app_config  # ваш основной config
 
 
 class PlotUpdater:
     """Обновление графиков в реальном времени с кнопкой выхода"""
 
     def __init__(self, window_size: int = None, on_exit_callback=None):
-        self.window_size = window_size or config.PLOT_WINDOW
+        self.window_size = window_size or app_config.PLOT_WINDOW
         self.time_data = []
         self.raw_data = []
         self.filtered_data = []
         self.noise_data = []
-        self.start_time = time.time()
-        self.on_exit_callback = on_exit_callback  # Callback для завершения
+        self.on_exit_callback = on_exit_callback
         self.exit_requested = False
         self.window_closed = False
         self._setup_plot()
@@ -29,48 +29,20 @@ class PlotUpdater:
         plt.ion()
 
         # Создаём фигуру
-        self.fig = plt.figure(figsize=(12, 9))
+        self.fig = plt.figure(figsize=config.FIGURE_SIZE)
 
         # Подключаем обработчик закрытия окна (крестик)
         self.fig.canvas.mpl_connect('close_event', self._on_window_closed)
 
-        # Графики занимают верхнюю часть
-        self.ax1 = plt.subplot(2, 1, 1)
-        self.ax2 = plt.subplot(2, 1, 2)
+        # Создаём графики
+        self._plots = _DataPlots(self.fig)
 
-        self.fig.suptitle('Мониторинг температуры (событийная архитектура)', fontsize=14)
-
-        # Настройка первого графика
-        self.ax1.set_xlabel('Время (сек)')
-        self.ax1.set_ylabel('Температура (°C)')
-        self.ax1.set_title('Сырые и фильтрованные данные')
-        self.ax1.grid(True, alpha=0.3)
-        self.raw_line, = self.ax1.plot([], [], 'r-', alpha=0.5, label='Сырые', linewidth=1)
-        self.filt_line, = self.ax1.plot([], [], 'b-', label='Фильтрованные', linewidth=2)
-        self.ax1.legend(loc='upper right')
-
-        # Настройка второго графика
-        self.ax2.set_xlabel('Время (сек)')
-        self.ax2.set_ylabel('Разница (°C)')
-        self.ax2.set_title('Уровень шума')
-        self.ax2.grid(True, alpha=0.3)
-        self.noise_line, = self.ax2.plot([], [], 'g-', alpha=0.7, linewidth=1)
-        self.ax2.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+        # Создаём виджеты
+        self._widgets = _PlotWidgets(self.fig)
+        self._widgets.set_exit_callback(self._on_exit_clicked)
 
         # Добавляем место для кнопки снизу
-        plt.subplots_adjust(bottom=0.1)
-
-        # Создаём область для кнопки завершения
-        button_ax = plt.axes([0.35, 0.02, 0.2, 0.05])
-        self.exit_button = Button(button_ax, '🛑 ЗАВЕРШИТЬ', color='lightcoral', hovercolor='red')
-        self.exit_button.on_clicked(self._on_exit_clicked)
-
-        # Добавляем информационную панель
-        info_ax = plt.axes([0.58, 0.02, 0.4, 0.05])
-        info_ax.set_axis_off()
-        self.info_text = info_ax.text(0, 0.5, 'Крестик окна | Ctrl+C | Кнопка',
-                                      transform=info_ax.transAxes, va='center',
-                                      fontsize=9, color='gray')
+        plt.subplots_adjust(bottom=config.BOTTOM_PADDING)
 
     def _on_window_closed(self, event):
         """Обработчик закрытия окна (крестик)"""
@@ -92,10 +64,8 @@ class PlotUpdater:
         # Обновляем визуальное состояние если окно ещё открыто
         try:
             if plt.fignum_exists(self.fig.number):
-                self.exit_button.label.set_text('⏳ Завершение...')
-                self.exit_button.color = 'gray'
-                self.exit_button.hovercolor = 'gray'
-                self.info_text.set_text('Завершение программы...')
+                self._widgets.update_exit_button('⏳ Завершение...', 'gray')
+                self._widgets.update_info_text('Завершение программы...')
                 self.fig.canvas.draw()
         except:
             pass
@@ -108,13 +78,12 @@ class PlotUpdater:
 
     async def handle_temperature(self, event: TemperatureEvent):
         """Обработка события температуры"""
-        # Если окно закрыто или запрошен выход - не обновляем
         if self.window_closed or self.exit_requested:
             return
 
         if event.type == EventType.TEMPERATURE_FILTERED:
             data = event.data
-            current_time = time.time() - self.start_time
+            current_time = event.timestamp.timestamp()
 
             self.time_data.append(current_time)
             self.raw_data.append(data['raw'])
@@ -129,20 +98,17 @@ class PlotUpdater:
                 self.noise_data = self.noise_data[-self.window_size:]
 
             # Обновляем линии
-            self.raw_line.set_xdata(self.time_data)
-            self.raw_line.set_ydata(self.raw_data)
-            self.filt_line.set_xdata(self.time_data)
-            self.filt_line.set_ydata(self.filtered_data)
-            self.noise_line.set_xdata(self.time_data)
-            self.noise_line.set_ydata(self.noise_data)
+            self._plots.update_lines(
+                self.time_data, self.raw_data,
+                self.filtered_data, self.noise_data
+            )
 
-            # Автомасштабирование
-            self.ax1.relim()
-            self.ax1.autoscale_view()
-            self.ax2.relim()
-            self.ax2.autoscale_view()
+            # Применяем форматтер времени
+            ax1, ax2 = self._plots.get_axes()
+            _apply_time_formatter(ax1, ax2)
 
             # Отрисовка (с проверкой что окно ещё существует)
+            self.fig.autofmt_xdate(rotation=config.TIME_ROTATION)
             try:
                 if plt.fignum_exists(self.fig.number):
                     self.fig.canvas.draw()
