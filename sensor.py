@@ -18,9 +18,9 @@ class TemperatureSensor:
 
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
-        self.filters = []
-        self.filters.append(TemperatureFilter())
-        self.filters.append(TemperatureFilter())
+        self.filters = {}
+        # self.filters.append(TemperatureFilter())
+        # self.filters.append(TemperatureFilter())
         self.serial: Optional[serial.Serial] = None
         self.running = False
 
@@ -96,11 +96,25 @@ class TemperatureSensor:
                     ind = 0
                     for (item) in data.get('data', []):
                         try:
-                            measurement = Measurement(
-                                item['id'],
-                                item['temp'],
-                                _filter=self.filters[ind]
-                            )
+                            sensor_id = item['id']
+
+                            if sensor_id in self.filters:
+                                # Существует
+                                measurement = Measurement(
+                                    item['id'],
+                                    item['temp'],
+                                    _filter=self.filters[sensor_id]
+                                )
+                            else:
+                                # Не существует - создаём
+                                new_filter = TemperatureFilter()
+                                self.filters[sensor_id] = new_filter
+                                measurement = Measurement(
+                                    item['id'],
+                                    item['temp'],
+                                    _filter=new_filter
+                                )
+
                             measurements.append(measurement)
                             ind += 1
                         except (KeyError, TypeError) as e:
