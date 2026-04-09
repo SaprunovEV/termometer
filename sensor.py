@@ -18,7 +18,9 @@ class TemperatureSensor:
 
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
-        self.filter = TemperatureFilter()
+        self.filters = []
+        self.filters.append(TemperatureFilter())
+        self.filters.append(TemperatureFilter())
         self.serial: Optional[serial.Serial] = None
         self.running = False
 
@@ -87,19 +89,36 @@ class TemperatureSensor:
                 raw_line = await asyncio.to_thread(self._read_temperature)
 
                 if raw_line is not None:
+
                     data = json.loads(raw_line)
-                    measurement = Measurement(data['data'][0]['id'], data['data'][0]['temp'], _filter=self.filter)
+                    measurements = []
+
+                    ind = 0
+                    for (item) in data.get('data', []):
+                        try:
+                            measurement = Measurement(
+                                item['id'],
+                                item['temp'],
+                                _filter=self.filters[ind]
+                            )
+                            measurements.append(measurement)
+                            ind += 1
+                        except (KeyError, TypeError) as e:
+                            await self.event_bus.emit(TemperatureEvent(
+                                EventType.SENSOR_ERROR,
+                                str(e)
+                            ))
 
                     # Событие сырых данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_RAW,
-                        {"value": measurement.value, "id": measurement.ter_id}
+                        measurements
                     ))
 
                     # Событие отфильтрованных данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_FILTERED,
-                        measurement
+                        measurements
                     ))
                 else:
                     await self.event_bus.emit(TemperatureEvent(

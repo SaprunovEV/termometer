@@ -25,13 +25,14 @@ class CSVWriter:
         """Обработка события температуры"""
         if event.type == EventType.TEMPERATURE_FILTERED:
             data = event.data
-            self.writer.writerow([
-                f"{data.ter_id}",
-                event.timestamp.isoformat(),
-                f"{data.value:.3f}",
-                f"{data.filtered:.3f}",
-                f"{data.noise():.3f}"
-            ])
+            for item in data:
+                self.writer.writerow([
+                    f"{item.ter_id}",
+                    event.timestamp.isoformat(),
+                    f"{item.value:.3f}",
+                    f"{item.filtered:.3f}",
+                    f"{item.noise():.3f}"
+                ])
             self.file.flush()
             self.measurement_count += 1
 
