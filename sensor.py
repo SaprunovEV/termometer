@@ -3,6 +3,7 @@
 import asyncio
 import serial
 import time
+import json
 from typing import Optional
 
 from event_bus import EventBus
@@ -38,7 +39,7 @@ class TemperatureSensor:
             self.serial.close()
             print("[Sensor] Отключен")
 
-    def _read_temperature(self) -> Optional[float]:
+    def _read_temperature(self) -> Optional[str]:
         """Чтение температуры с фильтрацией текстовых сообщений"""
         timeout = time.time() + 2
         while time.time() < timeout:
@@ -54,13 +55,14 @@ class TemperatureSensor:
                 # Пропускаем текстовые сообщения
                 text_keywords = ["Эмулятор", "Режим", "===", "Команды", "Ступень", "запущен"]
                 if any(keyword in line for keyword in text_keywords):
+                    print(line)
                     self.event_bus.emit_sync(TemperatureEvent(
                         EventType.SYSTEM_STATUS, line
                     ))
                     continue
 
                 try:
-                    return float(line)
+                    return line
                 except ValueError:
                     self.event_bus.emit_sync(TemperatureEvent(
                         EventType.SYSTEM_STATUS, line
@@ -81,27 +83,28 @@ class TemperatureSensor:
                 self.serial.write(b'T')
 
                 # Чтение
-                raw_temp = await asyncio.to_thread(self._read_temperature)
+                raw_line = await asyncio.to_thread(self._read_temperature)
 
-                if raw_temp is not None:
+                if raw_line is not None:
+                    data = json.loads(raw_line)
                     # Событие сырых данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_RAW,
-                        {"value": raw_temp, "id": 1}
+                        {"value": data['data'][0]['temp'], "id": data['data'][0]['id']}
                     ))
 
                     # Фильтрация
-                    filtered_temp = self.filter.filter(raw_temp)
-                    noise = raw_temp - filtered_temp
+                    filtered_temp = self.filter.filter(data['data'][0]['temp'])
+                    noise = data['data'][0]['temp'] - filtered_temp
 
                     # Событие отфильтрованных данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_FILTERED,
                         {
-                            "raw": raw_temp,
+                            "raw": data['data'][0]['temp'],
                             "filtered": filtered_temp,
                             "noise": noise,
-                            "id": 1
+                            "id": data['data'][0]['id']
                         }
                     ))
                 else:

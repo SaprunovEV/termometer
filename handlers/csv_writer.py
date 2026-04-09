@@ -19,13 +19,14 @@ class CSVWriter:
         """Открыть файл для записи"""
         self.file = open(self.filename, 'w', newline='', encoding='utf-8')
         self.writer = csv.writer(self.file)
-        self.writer.writerow(['Timestamp', 'Raw_Temp', 'Filtered_Temp', 'Noise'])
+        self.writer.writerow(['Termometr ID','Timestamp', 'Raw_Temp', 'Filtered_Temp', 'Noise'])
 
     async def handle_temperature(self, event: TemperatureEvent):
         """Обработка события температуры"""
         if event.type == EventType.TEMPERATURE_FILTERED:
             data = event.data
             self.writer.writerow([
+                f"{data['id']}",
                 event.timestamp.isoformat(),
                 f"{data['raw']:.3f}",
                 f"{data['filtered']:.3f}",
