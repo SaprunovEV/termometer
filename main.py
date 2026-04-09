@@ -1,14 +1,12 @@
 """Главный файл запуска системы мониторинга температуры"""
 
 import asyncio
-import signal
-import threading
 
+import config
 from event_bus import EventBus
 from events import EventType
-from sensor import TemperatureSensor
 from handlers import CSVWriter, ConsoleLogger, PlotUpdater, StatisticsCollector
-import config
+from sensor import TemperatureSensor
 
 
 class TemperatureMonitor:
