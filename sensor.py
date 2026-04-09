@@ -100,7 +100,8 @@ class TemperatureSensor:
                         {
                             "raw": raw_temp,
                             "filtered": filtered_temp,
-                            "noise": noise
+                            "noise": noise,
+                            "id": 1
                         }
                     ))
                 else:
