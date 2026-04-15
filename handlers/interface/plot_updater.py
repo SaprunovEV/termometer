@@ -207,23 +207,24 @@ class PlotUpdater:
             data = event.data
             current_time = event.timestamp.timestamp()
 
-            self.time_data.append(current_time)
-            self.raw_data.append(data[0].value)
-            self.filtered_data.append(data[0].filtered)
-            self.noise_data.append(data[0].noise())
+            if data:
+                self.time_data.append(current_time)
+                self.raw_data.append(data[0].value)
+                self.filtered_data.append(data[0].filtered)
+                self.noise_data.append(data[0].noise())
 
-            # Ограничиваем окно
-            if len(self.time_data) > self.window_size:
-                self.time_data = self.time_data[-self.window_size:]
-                self.raw_data = self.raw_data[-self.window_size:]
-                self.filtered_data = self.filtered_data[-self.window_size:]
-                self.noise_data = self.noise_data[-self.window_size:]
+                # Ограничиваем окно
+                if len(self.time_data) > self.window_size:
+                    self.time_data = self.time_data[-self.window_size:]
+                    self.raw_data = self.raw_data[-self.window_size:]
+                    self.filtered_data = self.filtered_data[-self.window_size:]
+                    self.noise_data = self.noise_data[-self.window_size:]
 
-            # Обновляем линии
-            self._plots.update_lines(
-                self.time_data, self.raw_data,
-                self.filtered_data, self.noise_data
-            )
+                # Обновляем линии
+                self._plots.update_lines(
+                    self.time_data, self.raw_data,
+                    self.filtered_data, self.noise_data
+                )
 
             # Применяем форматтер времени
             ax1, ax2 = self._plots.get_axes()

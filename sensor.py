@@ -78,7 +78,7 @@ class TemperatureSensor:
 
         while self.running:
             if not self.connacted:
-                measurements = [Measurement("1", 12.3, TemperatureFilter())]
+                measurements = []
 
                 # Событие сырых данных
                 await self.event_bus.emit(TemperatureEvent(
