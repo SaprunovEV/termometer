@@ -1,6 +1,7 @@
 """Обработчик: обновление графиков с кнопкой выхода и обработкой закрытия окна"""
 
 import matplotlib.pyplot as plt
+import serial.tools.list_ports
 
 from events import EventType, TemperatureEvent
 from . import plot_config as config
@@ -11,21 +12,23 @@ import config as app_config  # ваш основной config
 
 
 class PlotUpdater:
-    """Обновление графиков в реальном времени с кнопкой выхода"""
+    """Обновление графиков в реальном времени с кнопкой выхода и выбором COM порта"""
 
-    def __init__(self, window_size: int = None, on_exit_callback=None):
+    def __init__(self, window_size: int = None, on_exit_callback=None, on_port_selected_callback=None):
         self.window_size = window_size or app_config.PLOT_WINDOW
         self.time_data = []
         self.raw_data = []
         self.filtered_data = []
         self.noise_data = []
         self.on_exit_callback = on_exit_callback
+        self.on_port_selected_callback = on_port_selected_callback
         self.exit_requested = False
         self.window_closed = False
+        self.selected_port = None
         self._setup_plot()
 
     def _setup_plot(self):
-        """Настройка графиков с кнопкой выхода"""
+        """Настройка графиков с кнопкой выхода и выбором COM порта"""
         plt.ion()
 
         # Создаём фигуру
@@ -37,12 +40,131 @@ class PlotUpdater:
         # Создаём графики
         self._plots = _DataPlots(self.fig)
 
-        # Создаём виджеты
+        # Создаём виджеты (здесь нужно будет расширить _PlotWidgets)
         self._widgets = _PlotWidgets(self.fig)
         self._widgets.set_exit_callback(self._on_exit_clicked)
 
-        # Добавляем место для кнопки снизу
+        # Добавляем виджет для выбора COM порта
+        self._setup_com_port_selector()
+
+        # Добавляем место для кнопки и селектора снизу
         plt.subplots_adjust(bottom=config.BOTTOM_PADDING)
+
+    def _setup_com_port_selector(self):
+        """Создание выпадающего списка для выбора COM порта"""
+        from matplotlib.widgets import RadioButtons
+
+        # Получаем список доступных COM портов
+        available_ports = self._get_available_com_ports()
+
+        if not available_ports:
+            available_ports = ["Нет доступных портов"]
+
+        # Позиция для селектора (можно настроить)
+        selector_ax = plt.axes([0.7, 0.02, 0.25, 0.04])
+
+        # Создаем выпадающий список с помощью RadioButtons
+        self.com_selector = RadioButtons(
+            selector_ax,
+            available_ports,
+            active=0
+        )
+
+        # Настройка внешнего вида селектора
+        selector_ax.set_title("COM порт", fontsize=8)
+
+        # Подключаем обработчик выбора порта
+        self.com_selector.on_clicked(self._on_port_selected)
+
+        # Сохраняем ссылку на ось для обновления
+        self.selector_ax = selector_ax
+
+    def _get_available_com_ports(self):
+        """Получение списка доступных COM портов"""
+        ports = serial.tools.list_ports.comports()
+        port_list = [f"{port.device} - {port.description}" for port in ports]
+        return port_list if port_list else []
+
+    def _on_port_selected(self, label):
+        """Обработчик выбора COM порта"""
+        if "Нет доступных портов" in label:
+            print("[Plot] Нет доступных COM портов")
+            return
+
+        # Извлекаем имя порта из выбранной метки
+        port_name = label.split(" - ")[0] if " - " in label else label
+        self.selected_port = port_name
+
+        print(f"\n[Plot] Выбран COM порт: {port_name}")
+
+        # Обновляем информационную метку
+        try:
+            if plt.fignum_exists(self.fig.number):
+                self._widgets.update_info_text(f'Выбран порт: {port_name}')
+                self.fig.canvas.draw()
+        except:
+            pass
+
+        # Вызываем callback если есть
+        if self.on_port_selected_callback:
+            import threading
+            thread = threading.Thread(
+                target=self.on_port_selected_callback,
+                args=(port_name,),
+                daemon=True
+            )
+            thread.start()
+
+    def refresh_com_ports(self):
+        """Обновление списка COM портов"""
+        available_ports = self._get_available_com_ports()
+
+        if not available_ports:
+            available_ports = ["Нет доступных портов"]
+
+        # Обновляем список в селекторе
+        self.com_selector.labels.clear()
+        self.com_selector.circles = []
+        self.com_selector.value_selected = None
+
+        for label in available_ports:
+            self.com_selector.labels.append(
+                self.com_selector.ax.text(
+                    0.25,
+                    0.5,
+                    label,
+                    transform=self.com_selector.ax.transAxes,
+                    ha="left",
+                    va="center"
+                )
+            )
+            self.com_selector.circles.append(
+                plt.Circle(
+                    (0.15, 0.5),
+                    0.07,
+                    transform=self.com_selector.ax.transAxes,
+                    fc='white',
+                    ec='black',
+                    lw=1
+                )
+            )
+            self.com_selector.ax.add_artist(self.com_selector.circles[-1])
+
+        if available_ports:
+            self.com_selector.active = 0
+            self.com_selector.eventson = False
+            self.com_selector.value_selected = available_ports[0]
+            self.com_selector.eventson = True
+            self.com_selector._active = 0
+            for i, circle in enumerate(self.com_selector.circles):
+                circle.set_facecolor('black' if i == 0 else 'white')
+
+        # Перерисовываем
+        try:
+            if plt.fignum_exists(self.fig.number):
+                self.fig.canvas.draw()
+        except:
+            pass
 
     def _on_window_closed(self, event):
         """Обработчик закрытия окна (крестик)"""
@@ -115,6 +237,10 @@ class PlotUpdater:
                     self.fig.canvas.flush_events()
             except:
                 self.window_closed = True
+
+    def get_selected_port(self) -> str:
+        """Возвращает выбранный COM порт"""
+        return self.selected_port
 
     def is_window_alive(self) -> bool:
         """Проверяет, открыто ли ещё окно графика"""

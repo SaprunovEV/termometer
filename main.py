@@ -69,9 +69,9 @@ class TemperatureMonitor:
         print("=" * 60 + "\n")
 
         # Подключаемся к датчику
-        if not self.sensor.connect():
-            print("[Ошибка] Не удалось подключиться к датчику")
-            return
+        # if not self.sensor.connect():
+        #     print("[Ошибка] Не удалось подключиться к датчику")
+        #     return
 
         # Создаём PlotUpdater с callback'ом на завершение
         self.plot_updater = PlotUpdater(on_exit_callback=self.request_shutdown)

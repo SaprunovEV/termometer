@@ -10,6 +10,8 @@ from event_bus import EventBus
 from events import EventType, TemperatureEvent
 from handlers.domain.MeasurementFactory import MeasurementFactory
 import config
+from handlers.domain.Messurement import Measurement
+from temperature_filter import TemperatureFilter
 
 
 class TemperatureSensor:
@@ -20,6 +22,7 @@ class TemperatureSensor:
         self.measurement_factory = MeasurementFactory()
         self.serial: Optional[serial.Serial] = None
         self.running = False
+        self.connacted = False
 
     def connect(self) -> bool:
         """Подключение к Serial порту"""
@@ -74,6 +77,23 @@ class TemperatureSensor:
         self.running = True
 
         while self.running:
+            if not self.connacted:
+                measurements = [Measurement("1", 12.3, TemperatureFilter())]
+
+                # Событие сырых данных
+                await self.event_bus.emit(TemperatureEvent(
+                    EventType.TEMPERATURE_RAW,
+                    measurements
+                ))
+
+                # Событие отфильтрованных данных
+                await self.event_bus.emit(TemperatureEvent(
+                    EventType.TEMPERATURE_FILTERED,
+                    measurements
+                ))
+                await asyncio.sleep(2)
+                continue
+
             try:
                 # Очищаем буфер
                 if self.serial.in_waiting:
