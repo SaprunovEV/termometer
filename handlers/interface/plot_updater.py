@@ -86,9 +86,9 @@ class PlotUpdater:
             current_time = event.timestamp.timestamp()
 
             self.time_data.append(current_time)
-            self.raw_data.append(data['raw'])
-            self.filtered_data.append(data['filtered'])
-            self.noise_data.append(data['noise'])
+            self.raw_data.append(data[0].value)
+            self.filtered_data.append(data[0].filtered)
+            self.noise_data.append(data[0].noise())
 
             # Ограничиваем окно
             if len(self.time_data) > self.window_size:

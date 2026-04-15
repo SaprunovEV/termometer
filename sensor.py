@@ -3,11 +3,12 @@
 import asyncio
 import serial
 import time
-from typing import Optional
+import json
+from typing import Optional, Any
 
 from event_bus import EventBus
 from events import EventType, TemperatureEvent
-from temperature_filter import TemperatureFilter
+from handlers.domain.MeasurementFactory import MeasurementFactory
 import config
 
 
@@ -16,7 +17,7 @@ class TemperatureSensor:
 
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
-        self.filter = TemperatureFilter()
+        self.measurement_factory = MeasurementFactory()
         self.serial: Optional[serial.Serial] = None
         self.running = False
 
@@ -38,7 +39,7 @@ class TemperatureSensor:
             self.serial.close()
             print("[Sensor] Отключен")
 
-    def _read_temperature(self) -> Optional[float]:
+    def _read_temperature(self) -> Optional[str]:
         """Чтение температуры с фильтрацией текстовых сообщений"""
         timeout = time.time() + 2
         while time.time() < timeout:
@@ -54,13 +55,14 @@ class TemperatureSensor:
                 # Пропускаем текстовые сообщения
                 text_keywords = ["Эмулятор", "Режим", "===", "Команды", "Ступень", "запущен"]
                 if any(keyword in line for keyword in text_keywords):
+                    print(line)
                     self.event_bus.emit_sync(TemperatureEvent(
                         EventType.SYSTEM_STATUS, line
                     ))
                     continue
 
                 try:
-                    return float(line)
+                    return line
                 except ValueError:
                     self.event_bus.emit_sync(TemperatureEvent(
                         EventType.SYSTEM_STATUS, line
@@ -81,27 +83,22 @@ class TemperatureSensor:
                 self.serial.write(b'T')
 
                 # Чтение
-                raw_temp = await asyncio.to_thread(self._read_temperature)
+                raw_line = await asyncio.to_thread(self._read_temperature)
 
-                if raw_temp is not None:
+                if raw_line is not None:
+
+                    measurements = await self.create_measurement(raw_line)
+
                     # Событие сырых данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_RAW,
-                        {"value": raw_temp}
+                        measurements
                     ))
-
-                    # Фильтрация
-                    filtered_temp = self.filter.filter(raw_temp)
-                    noise = raw_temp - filtered_temp
 
                     # Событие отфильтрованных данных
                     await self.event_bus.emit(TemperatureEvent(
                         EventType.TEMPERATURE_FILTERED,
-                        {
-                            "raw": raw_temp,
-                            "filtered": filtered_temp,
-                            "noise": noise
-                        }
+                        measurements
                     ))
                 else:
                     await self.event_bus.emit(TemperatureEvent(
@@ -117,6 +114,24 @@ class TemperatureSensor:
                     str(e)
                 ))
                 await asyncio.sleep(1)
+
+    async def create_measurement(self, raw_line: str) -> list[Any]:
+        data = json.loads(raw_line)
+        measurements = []
+
+        for (item) in data.get('data', []):
+            try:
+
+                measurement = self.measurement_factory.create_measurement(item)
+
+                measurements.append(measurement)
+
+            except (KeyError, TypeError) as e:
+                await self.event_bus.emit(TemperatureEvent(
+                    EventType.SENSOR_ERROR,
+                    str(e)
+                ))
+        return measurements
 
     def stop(self):
         """Остановка сбора данных"""

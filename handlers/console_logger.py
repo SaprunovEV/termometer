@@ -17,11 +17,12 @@ class ConsoleLogger:
             self.counter += 1
             data = event.data
 
-            if self.counter % self.log_interval == 0 or abs(data['noise']) > 0.2:
-                print(f"[{event.timestamp.strftime('%H:%M:%S')}] "
-                      f"#{self.counter} | Raw: {data['raw']:.3f}°C → "
-                      f"Filt: {data['filtered']:.3f}°C "
-                      f"(noise: {data['noise']:+.3f}°C)")
+            if self.counter % self.log_interval == 0 or abs(data[0].noise()) > 0.2:
+                for item in data:
+                    print(f"[{event.timestamp.strftime('%H:%M:%S')}] "
+                          f"#{self.counter} | Raw: {item.value:.3f}°C → "
+                          f"Filt: {item.filtered:.3f}°C "
+                          f"(noise: {item.noise():+.3f}°C)")
 
     async def handle_status(self, event: TemperatureEvent):
         """Обработка статусных сообщений"""
