@@ -1,6 +1,8 @@
 """Обработчик: запись в CSV файл"""
 
 import csv
+import os
+from datetime import datetime
 
 from events import EventType, TemperatureEvent
 
@@ -17,7 +19,13 @@ class CSVWriter:
 
     def _open_file(self):
         """Открыть файл для записи"""
-        self.file = open(self.filename, 'w', newline='', encoding='utf-8')
+        os.makedirs("./data", exist_ok=True)
+
+        # Заменяем двоеточия на дефисы или точки
+        now = datetime.now()
+        safe_time = now.isoformat().replace(':', '-')  # или replace(':', '.')
+
+        self.file = open(f"./data/{safe_time}{self.filename}", 'w', newline='', encoding='utf-8')
         self.writer = csv.writer(self.file)
         self.writer.writerow(['Termometr ID','Timestamp', 'Raw_Temp', 'Filtered_Temp', 'Noise'])
 
