@@ -11,7 +11,7 @@ CSV_FILE = 'temperature_data_new.csv'
 PLOT_WINDOW = 120  # Количество точек на графике
 
 # Настройки фильтров
-MEDIAN_WINDOW = 5
+MEDIAN_WINDOW = 3
 EMA_ALPHA = 0.3
 USE_KALMAN = True
 
