@@ -20,6 +20,6 @@ class MeasurementFactory:
 
         return Measurement(
             item['id'],
-            item['temp'],
+            item['value'],
             _filter=_filter
         )
